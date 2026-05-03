@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.lurids.disableportals.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "disableportals.refmap.json",
+  "mixins": [
+    "PortalShapeMixin",
+    "EnderEyeItemMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
