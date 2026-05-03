@@ -1,6 +1,6 @@
 # Portal Disabler
 
-A small NeoForge 1.21.1 mod that lets a server operator disable portal travel and portal creation across all dimensions. This is an original mod from QanoriaPorts, who mainly focuses on ports of other mods but ships an original here and there.
+A small NeoForge 1.21.1 mod that lets a server operator disable portal travel and portal creation across all dimensions.
 
 ## What it does
 
