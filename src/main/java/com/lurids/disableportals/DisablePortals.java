@@ -6,6 +6,7 @@ import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -16,6 +17,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.portal.PortalShape;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -88,7 +90,11 @@ public class DisablePortals {
     private int setNether(CommandContext<CommandSourceStack> ctx, boolean value) {
         MinecraftServer server = ctx.getSource().getServer();
         getState(server).setNetherDisabled(value);
-        if (value) clearPortals(server, st -> st.is(Blocks.NETHER_PORTAL));
+        if (value) {
+            clearPortals(server, st -> st.is(Blocks.NETHER_PORTAL));
+        } else {
+            clearStuckNetherFires(server);
+        }
         ctx.getSource().sendSuccess(
             () -> Component.literal(value ? "Nether portals disabled" : "Nether portals enabled"),
             true);
@@ -110,11 +116,48 @@ public class DisablePortals {
         PortalState state = getState(server);
         state.setNetherDisabled(value);
         state.setEndDisabled(value);
-        if (value) clearPortals(server, st -> st.is(Blocks.NETHER_PORTAL) || st.is(Blocks.END_PORTAL));
+        if (value) {
+            clearPortals(server, st -> st.is(Blocks.NETHER_PORTAL) || st.is(Blocks.END_PORTAL));
+        } else {
+            clearStuckNetherFires(server);
+        }
         ctx.getSource().sendSuccess(
             () -> Component.literal(value ? "All portals disabled" : "All portals enabled"),
             true);
         return 1;
+    }
+
+    private static void clearStuckNetherFires(MinecraftServer server) {
+        BlockState air = Blocks.AIR.defaultBlockState();
+        for (ServerLevel level : server.getAllLevels()) {
+            for (ChunkHolder holder : level.getChunkSource().chunkMap.getChunks()) {
+                LevelChunk chunk = holder.getTickingChunk();
+                if (chunk == null) continue;
+                LevelChunkSection[] sections = chunk.getSections();
+                int chunkMinX = chunk.getPos().getMinBlockX();
+                int chunkMinZ = chunk.getPos().getMinBlockZ();
+                int worldMinY = level.getMinBuildHeight();
+                for (int s = 0; s < sections.length; s++) {
+                    LevelChunkSection section = sections[s];
+                    if (section == null || section.hasOnlyAir()) continue;
+                    if (!section.maybeHas(st -> st.is(Blocks.FIRE))) continue;
+                    int sectionMinY = worldMinY + s * 16;
+                    for (int x = 0; x < 16; x++) {
+                        for (int y = 0; y < 16; y++) {
+                            for (int z = 0; z < 16; z++) {
+                                BlockState st = section.getBlockState(x, y, z);
+                                if (st.is(Blocks.FIRE)) {
+                                    BlockPos pos = new BlockPos(chunkMinX + x, sectionMinY + y, chunkMinZ + z);
+                                    if (PortalShape.findEmptyPortalShape(level, pos, Direction.Axis.X).isPresent()) {
+                                        level.setBlock(pos, air, 3);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private static void clearPortals(MinecraftServer server, Predicate<BlockState> match) {
