@@ -12,6 +12,8 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -24,6 +26,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 import java.util.function.Predicate;
 
@@ -45,6 +48,32 @@ public class DisablePortals {
 
     public static boolean isEndDisabled(MinecraftServer server) {
         return server != null && getState(server).isEndDisabled();
+    }
+
+    @SubscribeEvent
+    public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        Level level = event.getLevel();
+        if (level.isClientSide()) return;
+        if (!(level instanceof ServerLevel sl)) return;
+        if (!getState(sl.getServer()).isNetherDisabled()) return;
+
+        ItemStack stack = event.getItemStack();
+        if (!stack.is(Items.FLINT_AND_STEEL) && !stack.is(Items.FIRE_CHARGE)) return;
+
+        BlockState clicked = level.getBlockState(event.getPos());
+        if (!clicked.is(Blocks.OBSIDIAN)) return;
+
+        BlockPos firePos = event.getPos().relative(event.getFace());
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    if (level.getBlockState(firePos.offset(dx, dy, dz)).is(Blocks.FIRE)) {
+                        event.setCanceled(true);
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     @SubscribeEvent
