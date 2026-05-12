@@ -20,7 +20,7 @@ public abstract class EnderEyeItemMixin {
         )
     )
     private BlockPattern.BlockPatternMatch disableportals$skipPortalOpen(BlockPattern instance, LevelReader level, BlockPos pos) {
-        if (level instanceof ServerLevel sl && DisablePortals.isPortalDisabled(sl.getServer())) {
+        if (level instanceof ServerLevel sl && DisablePortals.isEndDisabled(sl.getServer())) {
             return null;
         }
         return instance.find(level, pos);

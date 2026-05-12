@@ -1,12 +1,17 @@
 package com.lurids.disableportals;
 
 import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -18,6 +23,8 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 
+import java.util.function.Predicate;
+
 @Mod(DisablePortals.MODID)
 public class DisablePortals {
     public static final String MODID = "portal_disabler";
@@ -27,52 +34,90 @@ public class DisablePortals {
     }
 
     private static PortalState getState(MinecraftServer server) {
-        ServerLevel overworld = server.overworld();
-        return overworld.getDataStorage().computeIfAbsent(PortalState.factory(), PortalState.NAME);
+        return server.overworld().getDataStorage().computeIfAbsent(PortalState.factory(), PortalState.NAME);
     }
 
-    public static boolean isPortalDisabled(MinecraftServer server) {
-        return server != null && getState(server).isDisabled();
+    public static boolean isNetherDisabled(MinecraftServer server) {
+        return server != null && getState(server).isNetherDisabled();
+    }
+
+    public static boolean isEndDisabled(MinecraftServer server) {
+        return server != null && getState(server).isEndDisabled();
     }
 
     @SubscribeEvent
     public void onTravel(EntityTravelToDimensionEvent event) {
-        if (event.getEntity().level() instanceof ServerLevel sl
-                && getState(sl.getServer()).isDisabled()) {
+        if (!(event.getEntity().level() instanceof ServerLevel sl)) return;
+        PortalState state = getState(sl.getServer());
+        ResourceKey<Level> target = event.getDimension();
+        if (target == Level.NETHER && state.isNetherDisabled()) {
+            event.setCanceled(true);
+        } else if (target == Level.END && state.isEndDisabled()) {
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(
-            Commands.literal("disableportals")
-                .requires(src -> src.hasPermission(2))
-                .executes(ctx -> {
-                    boolean disabled = getState(ctx.getSource().getServer()).isDisabled();
-                    ctx.getSource().sendSuccess(
-                        () -> Component.literal(disabled ? "Portals are disabled" : "Portals are enabled"),
-                        false
-                    );
-                    return 1;
-                })
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("disable")
+            .requires(s -> s.hasPermission(2))
+            .executes(this::showStatus)
+            .then(Commands.literal("nether")
                 .then(Commands.argument("value", BoolArgumentType.bool())
-                    .executes(ctx -> {
-                        boolean value = BoolArgumentType.getBool(ctx, "value");
-                        MinecraftServer server = ctx.getSource().getServer();
-                        getState(server).setDisabled(value);
-                        if (value) clearExistingPortals(server);
-                        ctx.getSource().sendSuccess(
-                            () -> Component.literal(value ? "Portals disabled" : "Portals enabled"),
-                            true
-                        );
-                        return 1;
-                    })
-                )
-        );
+                    .executes(ctx -> setNether(ctx, BoolArgumentType.getBool(ctx, "value")))))
+            .then(Commands.literal("end")
+                .then(Commands.argument("value", BoolArgumentType.bool())
+                    .executes(ctx -> setEnd(ctx, BoolArgumentType.getBool(ctx, "value")))))
+            .then(Commands.literal("all")
+                .then(Commands.argument("value", BoolArgumentType.bool())
+                    .executes(ctx -> setAll(ctx, BoolArgumentType.getBool(ctx, "value")))));
+        event.getDispatcher().register(root);
     }
 
-    private static void clearExistingPortals(MinecraftServer server) {
+    private int showStatus(CommandContext<CommandSourceStack> ctx) {
+        PortalState state = getState(ctx.getSource().getServer());
+        boolean nether = state.isNetherDisabled();
+        boolean end = state.isEndDisabled();
+        ctx.getSource().sendSuccess(() -> Component.literal(
+            "Nether portals are " + (nether ? "disabled" : "enabled") + "\n"
+            + "End portals are " + (end ? "disabled" : "enabled")
+        ), false);
+        return 1;
+    }
+
+    private int setNether(CommandContext<CommandSourceStack> ctx, boolean value) {
+        MinecraftServer server = ctx.getSource().getServer();
+        getState(server).setNetherDisabled(value);
+        if (value) clearPortals(server, st -> st.is(Blocks.NETHER_PORTAL));
+        ctx.getSource().sendSuccess(
+            () -> Component.literal(value ? "Nether portals disabled" : "Nether portals enabled"),
+            true);
+        return 1;
+    }
+
+    private int setEnd(CommandContext<CommandSourceStack> ctx, boolean value) {
+        MinecraftServer server = ctx.getSource().getServer();
+        getState(server).setEndDisabled(value);
+        if (value) clearPortals(server, st -> st.is(Blocks.END_PORTAL));
+        ctx.getSource().sendSuccess(
+            () -> Component.literal(value ? "End portals disabled" : "End portals enabled"),
+            true);
+        return 1;
+    }
+
+    private int setAll(CommandContext<CommandSourceStack> ctx, boolean value) {
+        MinecraftServer server = ctx.getSource().getServer();
+        PortalState state = getState(server);
+        state.setNetherDisabled(value);
+        state.setEndDisabled(value);
+        if (value) clearPortals(server, st -> st.is(Blocks.NETHER_PORTAL) || st.is(Blocks.END_PORTAL));
+        ctx.getSource().sendSuccess(
+            () -> Component.literal(value ? "All portals disabled" : "All portals enabled"),
+            true);
+        return 1;
+    }
+
+    private static void clearPortals(MinecraftServer server, Predicate<BlockState> match) {
         BlockState air = Blocks.AIR.defaultBlockState();
         for (ServerLevel level : server.getAllLevels()) {
             for (ChunkHolder holder : level.getChunkSource().chunkMap.getChunks()) {
@@ -85,13 +130,13 @@ public class DisablePortals {
                 for (int s = 0; s < sections.length; s++) {
                     LevelChunkSection section = sections[s];
                     if (section == null || section.hasOnlyAir()) continue;
-                    if (!section.maybeHas(st -> st.is(Blocks.NETHER_PORTAL) || st.is(Blocks.END_PORTAL))) continue;
+                    if (!section.maybeHas(match)) continue;
                     int sectionMinY = worldMinY + s * 16;
                     for (int x = 0; x < 16; x++) {
                         for (int y = 0; y < 16; y++) {
                             for (int z = 0; z < 16; z++) {
                                 BlockState st = section.getBlockState(x, y, z);
-                                if (st.is(Blocks.NETHER_PORTAL) || st.is(Blocks.END_PORTAL)) {
+                                if (match.test(st)) {
                                     level.setBlock(new BlockPos(chunkMinX + x, sectionMinY + y, chunkMinZ + z), air, 3);
                                 }
                             }

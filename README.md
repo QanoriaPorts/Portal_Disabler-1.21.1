@@ -1,25 +1,31 @@
 # Portal Disabler
 
-A small NeoForge 1.21.1 mod that lets a server operator disable portal travel and portal creation across all dimensions.
+A small NeoForge 1.21.1 mod that lets a server operator disable Nether and End portals independently or together.
 
 ## What it does
 
-When portals are disabled:
+When a dimension is disabled:
 
-- **Dimension travel is blocked.** Nether portals, end portals, and any modded dimension portal that goes through Minecraft's standard dimension-change pipeline will refuse to take entities through.
-- **Nether portals can't form.** Flint & steel and fire charges still light fire normally, but the purple portal blocks never spawn.
-- **End portals don't open.** Ender eyes still slot into end portal frames and play their animation, but no portal blocks form even with all twelve eyes.
-- **Existing portals are removed instantly.** When you disable, every existing nether/end portal block in every loaded chunk is replaced with air.
+- **Travel to that dimension is blocked.** Players who step into a Nether portal (or fall through an End portal) stay where they are.
+- **Nether portals can't form** when Nether is disabled. Flint & steel and fire charges still light fire normally, but the purple portal blocks never spawn.
+- **End portals can't open** when End is disabled. Ender eyes still slot into End portal frames and play their animation, but no portal blocks form even with all twelve eyes.
+- **Existing portals are removed instantly** when you disable that dimension. Every loaded Nether/End portal block is replaced with air.
+
+Disabling a destination dimension never traps players — leaving the Nether or the End back to the Overworld still works, since that travel targets the Overworld and isn't affected.
 
 ## Commands
 
 | Command | Effect |
 | --- | --- |
-| `/disableportals` | Prints the current state ("Portals are disabled" / "Portals are enabled") |
-| `/disableportals true` | Disable portals; clears existing portal blocks |
-| `/disableportals false` | Re-enable portals (does not restore previously cleared portals) |
+| `/disable` | Print the current state of both Nether and End |
+| `/disable nether true` | Disable Nether; clear existing Nether portal blocks |
+| `/disable nether false` | Re-enable Nether |
+| `/disable end true` | Disable End; clear existing End portal blocks |
+| `/disable end false` | Re-enable End |
+| `/disable all true` | Disable both; clear all existing Nether/End portal blocks |
+| `/disable all false` | Re-enable both |
 
-Requires permission level 2 (op). State is persisted per-world via `SavedData`.
+Requires permission level 2 (op). State is persisted per-world via `SavedData`. Re-enabling does not restore previously cleared portals.
 
 ## Compatibility
 

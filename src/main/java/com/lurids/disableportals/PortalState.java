@@ -7,28 +7,42 @@ import net.minecraft.world.level.saveddata.SavedData;
 public class PortalState extends SavedData {
     public static final String NAME = DisablePortals.MODID;
 
-    private boolean disabled = false;
+    private boolean netherDisabled = false;
+    private boolean endDisabled = false;
 
-    public boolean isDisabled() {
-        return disabled;
+    public boolean isNetherDisabled() {
+        return netherDisabled;
     }
 
-    public void setDisabled(boolean value) {
-        if (this.disabled != value) {
-            this.disabled = value;
+    public boolean isEndDisabled() {
+        return endDisabled;
+    }
+
+    public void setNetherDisabled(boolean value) {
+        if (this.netherDisabled != value) {
+            this.netherDisabled = value;
+            setDirty();
+        }
+    }
+
+    public void setEndDisabled(boolean value) {
+        if (this.endDisabled != value) {
+            this.endDisabled = value;
             setDirty();
         }
     }
 
     public static PortalState load(CompoundTag tag, HolderLookup.Provider provider) {
         PortalState state = new PortalState();
-        state.disabled = tag.getBoolean("disabled");
+        state.netherDisabled = tag.getBoolean("netherDisabled");
+        state.endDisabled = tag.getBoolean("endDisabled");
         return state;
     }
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
-        tag.putBoolean("disabled", disabled);
+        tag.putBoolean("netherDisabled", netherDisabled);
+        tag.putBoolean("endDisabled", endDisabled);
         return tag;
     }
 

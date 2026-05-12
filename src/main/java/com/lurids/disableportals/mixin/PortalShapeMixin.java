@@ -17,7 +17,7 @@ public abstract class PortalShapeMixin {
 
     @Inject(method = "createPortalBlocks", at = @At("HEAD"), cancellable = true)
     private void disableportals$skipIfDisabled(CallbackInfo ci) {
-        if (this.level instanceof ServerLevel sl && DisablePortals.isPortalDisabled(sl.getServer())) {
+        if (this.level instanceof ServerLevel sl && DisablePortals.isNetherDisabled(sl.getServer())) {
             ci.cancel();
         }
     }
